@@ -11,12 +11,13 @@ import java.io.IOException;
 import adubbz.nx.common.ElfCompatibilityProvider;
 import adubbz.nx.common.InvalidMagicException;
 import adubbz.nx.common.NXRelocation;
-import generic.continues.RethrowContinuesFactory;
+import adubbz.nx.util.BinaryReaderExt;
+
+import ghidra.app.util.bin.BinaryReader;
 import ghidra.app.util.bin.ByteProvider;
-import ghidra.app.util.bin.format.FactoryBundledWithBinaryReader;
+import ghidra.app.util.bin.format.elf.*;
 import ghidra.app.util.bin.format.elf.ElfDynamic;
-import ghidra.app.util.bin.format.elf.ElfDynamicTable;
-import ghidra.app.util.bin.format.elf.ElfDynamicType;
+import ghidra.app.util.bin.format.elf.relocation.ARM_ElfRelocationConstants;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryBlock;
 import ghidra.util.Msg;
@@ -56,14 +57,16 @@ public abstract class MOD0Adapter extends NXOAdapter
             return this.getElfProvider(this.program).getDynamicTable().getLength();
         
         long dtSize = 0;
-        var factoryReader = new FactoryBundledWithBinaryReader(RethrowContinuesFactory.INSTANCE, this.getMemoryProvider(), true);
-        factoryReader.setPointerIndex(this.getDynamicOffset());
+        var reader = new BinaryReaderExt(this.getMemoryProvider(), true);
+        reader.setPointerIndex(this.getDynamicOffset());
         
         try
         {
+            BinaryReader reader_downcast = reader;
+            ElfHeader header = new ElfCompatibilityProvider.DummyElfHeader(this.isAarch32());
             while (true) 
             {
-                ElfDynamic dyn = ElfDynamic.createElfDynamic(factoryReader, new ElfCompatibilityProvider.DummyElfHeader(this.isAarch32()));
+                ElfDynamic dyn = new ElfDynamic(reader_downcast, header);
                 dtSize += dyn.sizeof();
                 if (dyn.getTag() == ElfDynamicType.DT_NULL.value) 
                 {

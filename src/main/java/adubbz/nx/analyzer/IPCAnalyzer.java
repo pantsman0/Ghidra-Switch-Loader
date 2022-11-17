@@ -40,7 +40,6 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressOutOfBoundsException;
 import ghidra.program.model.address.AddressSetView;
 import ghidra.program.model.address.AddressSpace;
-import ghidra.program.model.data.DataTypeConflictException;
 import ghidra.program.model.data.PointerDataType;
 import ghidra.program.model.listing.CodeUnit;
 import ghidra.program.model.listing.Data;
@@ -810,7 +809,7 @@ public class IPCAnalyzer extends AbstractAnalyzer
             {
                 d = program.getListing().createData(address, PointerDataType.dataType, 8);
             } 
-            catch (CodeUnitInsertionException | DataTypeConflictException e) 
+            catch (CodeUnitInsertionException e) 
             {
                 Msg.error(this, String.format("Failed to create pointer at 0x%X", address.getOffset()), e);
             }

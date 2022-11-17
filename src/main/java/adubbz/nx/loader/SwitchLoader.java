@@ -98,8 +98,8 @@ public class SwitchLoader extends BinaryLoader
         return loadSpecs;
     }
 
-    @Override
-    protected List<Program> loadProgram(ByteProvider provider, String programName,
+    /*@Override
+    protected List<LoadedProgram> loadProgram(ByteProvider provider, String programName,
             DomainFolder programFolder, LoadSpec loadSpec, List<Option> options, MessageLog log,
             Object consumer, TaskMonitor monitor)
                     throws IOException, CancelledException 
@@ -125,10 +125,10 @@ public class SwitchLoader extends BinaryLoader
             }
         }
 
-        List<Program> results = new ArrayList<Program>();
+        List<LoadedProgram> results = new ArrayList<LoadedProgram>();
         if (prog != null) results.add(prog);
         return results;
-    }
+    }*/
 
     @Override
     protected boolean loadProgramInto(ByteProvider provider, LoadSpec loadSpec, List<Option> options,
