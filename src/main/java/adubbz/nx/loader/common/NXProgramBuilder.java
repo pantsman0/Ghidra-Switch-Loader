@@ -6,21 +6,14 @@
  */
 package adubbz.nx.loader.common;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.primitives.Longs;
-
 import adubbz.nx.common.NXRelocation;
-import adubbz.nx.loader.nxo.NXOAdapter;
 import adubbz.nx.loader.nxo.NXO;
+import adubbz.nx.loader.nxo.NXOAdapter;
 import adubbz.nx.loader.nxo.NXOSection;
 import adubbz.nx.loader.nxo.NXOSectionType;
 import adubbz.nx.util.UIUtil;
+import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Longs;
 import ghidra.app.cmd.label.SetLabelPrimaryCmd;
 import ghidra.app.util.MemoryBlockUtils;
 import ghidra.app.util.bin.BinaryReader;
@@ -32,34 +25,27 @@ import ghidra.app.util.bin.format.elf.ElfSymbol;
 import ghidra.app.util.bin.format.elf.relocation.AARCH64_ElfRelocationConstants;
 import ghidra.app.util.bin.format.elf.relocation.ARM_ElfRelocationConstants;
 import ghidra.app.util.importer.MessageLog;
-import ghidra.framework.store.LockException;
-import ghidra.program.model.address.Address;
-import ghidra.program.model.address.AddressOutOfBoundsException;
-import ghidra.program.model.address.AddressOverflowException;
-import ghidra.program.model.address.AddressSet;
-import ghidra.program.model.address.AddressSpace;
-import ghidra.program.model.data.DataTypeConflictException;
+import ghidra.program.model.address.*;
 import ghidra.program.model.data.PointerDataType;
 import ghidra.program.model.data.TerminatedStringDataType;
-import ghidra.program.model.listing.Data;
-import ghidra.program.model.listing.Function;
-import ghidra.program.model.listing.FunctionManager;
-import ghidra.program.model.listing.Library;
-import ghidra.program.model.listing.Program;
+import ghidra.program.model.listing.*;
 import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.mem.MemoryBlock;
-import ghidra.program.model.symbol.ExternalLocation;
-import ghidra.program.model.symbol.ExternalManager;
-import ghidra.program.model.symbol.Namespace;
-import ghidra.program.model.symbol.SourceType;
-import ghidra.program.model.symbol.Symbol;
-import ghidra.program.model.symbol.SymbolTable;
+import ghidra.program.model.reloc.Relocation;
+import ghidra.program.model.symbol.*;
 import ghidra.program.model.util.CodeUnitInsertionException;
 import ghidra.util.Msg;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.exception.NotFoundException;
 import ghidra.util.task.TaskMonitor;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class NXProgramBuilder 
 {
@@ -157,7 +143,7 @@ public class NXProgramBuilder
                 }
             }
         }
-        catch (IOException | NotFoundException | AddressOverflowException | AddressOutOfBoundsException | CodeUnitInsertionException | DataTypeConflictException | MemoryAccessException | InvalidInputException e)
+        catch (IOException | NotFoundException | AddressOverflowException | AddressOutOfBoundsException | CodeUnitInsertionException | MemoryAccessException | InvalidInputException e)
         {
             e.printStackTrace();
         }
@@ -172,7 +158,7 @@ public class NXProgramBuilder
         return this.nxo;
     }
     
-    protected void setupStringTable() throws AddressOverflowException, CodeUnitInsertionException, DataTypeConflictException
+    protected void setupStringTable() throws AddressOverflowException, CodeUnitInsertionException
     {
        NXOAdapter adapter = this.nxo.getAdapter();
        ElfStringTable stringTable = adapter.getStringTable(this.program);
@@ -216,8 +202,7 @@ public class NXProgramBuilder
         }
     }
     
-    protected void setupRelocations() throws AddressOverflowException, AddressOutOfBoundsException, IOException, NotFoundException, CodeUnitInsertionException, DataTypeConflictException
-    {
+    protected void setupRelocations() throws AddressOutOfBoundsException, NotFoundException, IOException {
         NXOAdapter adapter = this.nxo.getAdapter();
         ByteProvider memoryProvider = adapter.getMemoryProvider();
         BinaryReader memoryReader = adapter.getMemoryReader();
@@ -287,7 +272,7 @@ public class NXProgramBuilder
         this.memBlockHelper.addSection(".plt", pltStart, pltStart, pltEnd - pltStart, true, false, false);
     }
     
-    protected void createGlobalOffsetTable() throws AddressOverflowException, AddressOutOfBoundsException, IOException
+    protected void createGlobalOffsetTable() throws AddressOutOfBoundsException
     {
         NXOAdapter adapter = this.nxo.getAdapter();
         ByteProvider memoryProvider = adapter.getMemoryProvider();
@@ -369,8 +354,9 @@ public class NXProgramBuilder
                 {
                     symbolName = reloc.sym.getNameAsString();
                 }
-                
-                program.getRelocationTable().add(target, (int)reloc.r_type, new long[] { reloc.r_sym }, Longs.toByteArray(originalValue), symbolName);
+
+                // Status APPLIED: "Relocation was applied successfully and resulted in the modification of memory bytes."
+                program.getRelocationTable().add(target, Relocation.Status.APPLIED,(int)reloc.r_type, new long[] { reloc.r_sym }, Longs.toByteArray(originalValue), symbolName);
             }
         }
         
@@ -410,7 +396,7 @@ public class NXProgramBuilder
         long externalBlockAddrOffset = ((lastAddrOff + 0xFFF) & ~0xFFF) + undefEntrySize; // plus 1 so we don't end up on the "end" symbol
         
         // Create the block where imports will be located
-        this.createExternalBlock(this.aSpace.getAddress(externalBlockAddrOffset), this.undefSymbolCount * undefEntrySize);
+        this.createExternalBlock(this.aSpace.getAddress(externalBlockAddrOffset), (long) this.undefSymbolCount * undefEntrySize);
 
         // Handle imported symbols
         if (adapter.getSymbolTable(this.program) != null)
@@ -422,7 +408,14 @@ public class NXProgramBuilder
                 if (elfSymbol.getSectionHeaderIndex() == ElfSectionHeaderConstants.SHN_UNDEF && symName != null && !symName.isEmpty())
                 {
                     Address address = this.aSpace.getAddress(externalBlockAddrOffset);
-                    elfSymbol.setValue(externalBlockAddrOffset); // Fix the value to be non-zero, instead pointing to our fake EXTERNAL block
+                    try {
+                        Field elfSymbolValue = elfSymbol.getClass().getDeclaredField("st_value");
+                        elfSymbolValue.setAccessible(true);
+                        // Fix the value to be non-zero, instead pointing to our fake EXTERNAL block
+                        elfSymbolValue.set(elfSymbol, externalBlockAddrOffset);
+                    } catch (NoSuchFieldException | IllegalAccessException e) {
+                        Msg.error(this, "Couldn't find or set st_value field in ElfSymbol.", e);
+                    }
                     this.evaluateElfSymbol(elfSymbol, address, true);
                     externalBlockAddrOffset += undefEntrySize;
                 }
@@ -502,7 +495,7 @@ public class NXProgramBuilder
         return entryAddress;
     }
     
-    protected int createString(Address address) throws CodeUnitInsertionException, DataTypeConflictException 
+    protected int createString(Address address) throws CodeUnitInsertionException
     {
         Data d = this.program.getListing().getDataAt(address);
         
@@ -514,7 +507,7 @@ public class NXProgramBuilder
         return d.getLength();
     }
     
-    protected int createPointer(Address address) throws CodeUnitInsertionException, DataTypeConflictException
+    protected int createPointer(Address address) throws CodeUnitInsertionException
     {
         NXOAdapter adapter = this.nxo.getAdapter();
         Data d = this.program.getListing().getDataAt(address);
